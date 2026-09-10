@@ -83,10 +83,16 @@ if "resume_bytes" not in st.session_state:
 if "resume_filename" not in st.session_state:
     st.session_state.resume_filename = "resume.pdf"
 if "leads_df" not in st.session_state:
-    # Load default example leads
+    # Load default example leads safely
     example_path = os.path.join(BASE_DIR, "leads.example.csv")
     if os.path.exists(example_path):
-        st.session_state.leads_df = pd.read_csv(example_path)
+        try:
+            st.session_state.leads_df = pd.read_csv(example_path)
+        except Exception:
+            try:
+                st.session_state.leads_df = pd.read_csv(example_path, on_bad_lines="skip")
+            except Exception:
+                st.session_state.leads_df = pd.DataFrame(columns=["name", "email", "company", "role", "custom_hook"])
     else:
         st.session_state.leads_df = pd.DataFrame(columns=["name", "email", "company", "role", "custom_hook"])
 if "sent_history" not in st.session_state:
@@ -217,16 +223,30 @@ with tabs[1]:
     with col_up:
         uploaded_csv = st.file_uploader("Upload Target Leads CSV", type=["csv"])
         if uploaded_csv is not None:
-            st.session_state.leads_df = pd.read_csv(uploaded_csv)
-            if "custom_hook" not in st.session_state.leads_df.columns:
-                st.session_state.leads_df["custom_hook"] = ""
-            st.success(f"Loaded {len(st.session_state.leads_df)} leads from {uploaded_csv.name}")
+            try:
+                st.session_state.leads_df = pd.read_csv(uploaded_csv)
+                if "custom_hook" not in st.session_state.leads_df.columns:
+                    st.session_state.leads_df["custom_hook"] = ""
+                st.success(f"Loaded {len(st.session_state.leads_df)} leads from {uploaded_csv.name}")
+            except Exception as e:
+                try:
+                    uploaded_csv.seek(0)
+                    st.session_state.leads_df = pd.read_csv(uploaded_csv, on_bad_lines="skip")
+                    if "custom_hook" not in st.session_state.leads_df.columns:
+                        st.session_state.leads_df["custom_hook"] = ""
+                    st.warning(f"Loaded {len(st.session_state.leads_df)} leads (some improperly formatted rows were skipped).")
+                except Exception as inner_e:
+                    st.error(f"Error parsing CSV file: {inner_e}")
     with col_eg:
         if st.button("Reset to Example Leads"):
             example_path = os.path.join(BASE_DIR, "leads.example.csv")
             if os.path.exists(example_path):
-                st.session_state.leads_df = pd.read_csv(example_path)
-                st.info("Loaded starter leads!")
+                try:
+                    st.session_state.leads_df = pd.read_csv(example_path)
+                    st.info("Loaded starter leads!")
+                except Exception:
+                    st.session_state.leads_df = pd.read_csv(example_path, on_bad_lines="skip")
+                    st.info("Loaded starter leads!")
 
     st.markdown("#### Edit or Add Leads Directly in the Table:")
     edited_df = st.data_editor(
