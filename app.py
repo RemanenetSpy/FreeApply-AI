@@ -327,16 +327,30 @@ st.markdown(
 # --- State Defaults ---
 local_env = send_outreach.load_env(os.path.join(BASE_DIR, ".env"))
 
+def _get_conf(key: str, default: str = "") -> str:
+    # 1. Check local .env
+    val = local_env.get(key)
+    if val:
+        return val
+    # 2. Check Streamlit Cloud secrets
+    try:
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    # 3. Check OS environment
+    return os.environ.get(key, default)
+
 if "od_mode" not in st.session_state:
     st.session_state.od_mode = "01 · Vault & Identity"
 if "sender_name" not in st.session_state:
-    st.session_state.sender_name = local_env.get("SENDER_NAME", "")
+    st.session_state.sender_name = _get_conf("SENDER_NAME", "")
 if "smtp_email" not in st.session_state:
-    st.session_state.smtp_email = local_env.get("SMTP_EMAIL", "")
+    st.session_state.smtp_email = _get_conf("SMTP_EMAIL", "")
 if "smtp_password" not in st.session_state:
-    st.session_state.smtp_password = local_env.get("SMTP_APP_PASSWORD", "")
+    st.session_state.smtp_password = _get_conf("SMTP_APP_PASSWORD", "")
 if "gemini_api_key" not in st.session_state:
-    st.session_state.gemini_api_key = local_env.get("GEMINI_API_KEY", "")
+    st.session_state.gemini_api_key = _get_conf("GEMINI_API_KEY", "")
 if "resume_text" not in st.session_state:
     st.session_state.resume_text = ""
 if "resume_bytes" not in st.session_state:
@@ -686,6 +700,17 @@ elif st.session_state.od_mode == "03 · Composer Studio":
         )
 
     # Executive Email Canvas
+    if not st.session_state.sender_name or not st.session_state.smtp_email or (not st.session_state.leads_df.empty and "examplecorp" in str(st.session_state.leads_df.iloc[0].get("company", "")).lower()):
+        st.markdown(
+            """
+            <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid #1e3a8a; border-radius: 6px; padding: 0.55rem 0.85rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #93c5fd;">
+                <span style="font-family:'JetBrains Mono', monospace; font-weight:700; color:#bfdbfe;">PREVIEW MODE:</span>
+                Displaying default template with placeholder data. Configure your name, Gmail credentials, and upload your resume in <strong>01 · Vault & Identity</strong> to personalize.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     if not st.session_state.leads_df.empty and active_idx < len(st.session_state.leads_df):
         lead = st.session_state.leads_df.iloc[active_idx]
         company_val = str(lead.get("company", "Company"))
