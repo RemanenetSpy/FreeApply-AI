@@ -28,6 +28,7 @@ Millions of talented job seekers face two crippling roadblocks:
 * 👁️ **Dry-Run Mode by Default:** Preview exactly what every recruiter will receive before a single email is dispatched.
 * 📎 **Seamless Resume Attachment:** Automatically attaches your PDF resume with proper MIME encoding.
 * 🔁 **Automated Follow-Up Pipeline:** Seamlessly follow up on unresponded applications with custom follow-up templates and automatic subject threading (`Re: ...`).
+* 🔐 **Password-Encrypted Session Vault (`FreeApply_Vault.zip`):** Save and restore your credentials, resume, leads table, and entire Knowledge Graph in a single AES-256 encrypted archive. Pick up right where you left off on phone or PC without re-typing passwords or re-uploading files!
 * 📊 **Persistent Knowledge Graph:** Export your candidate $\rightarrow$ company touch graph (`log.md`) directly to your phone or laptop.
 * 🔒 **Local & 100% Private:** Your leads, sent history, credentials, and resume never leave your local session.
 

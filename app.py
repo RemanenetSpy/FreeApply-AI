@@ -4,28 +4,125 @@ FreeApply-AI: Web Application & Mobile Interface
 ------------------------------------------------
 A Streamlit web application providing a zero-terminal, mobile-friendly
 interface for automated cold outreach, Gemini AI personalization, and
-knowledge graph tracking.
+password-encrypted Knowledge Graph vault management.
 
 Run locally:
   streamlit run app.py
 """
 
+import base64
 from datetime import datetime
 import io
+import json
 import os
 import random
 import tempfile
 import time
+import zipfile
+
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import pandas as pd
 import streamlit as st
 
-# Import core outreach and personalization logic
+# Import core outreach and personalization modules
 import send_outreach
 import personalize
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+VAULT_MAGIC = b"FAVAULT1"
 
+
+# --- Vault Cryptography Helpers ---
+def derive_vault_key(password: str, salt: bytes) -> bytes:
+    """Derive 32-byte key from password using PBKDF2-HMAC-SHA256."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode("utf-8")))
+
+
+def pack_encrypted_vault(
+    password: str,
+    config: dict,
+    leads_df: pd.DataFrame,
+    sent_history: list,
+    resume_bytes: bytes | None,
+    resume_filename: str,
+    log_md: str,
+) -> bytes:
+    """Package credentials, resume, leads, and history into a password-encrypted zip vault."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("config.json", json.dumps(config, indent=2))
+        if resume_bytes:
+            zf.writestr(resume_filename or "resume.pdf", resume_bytes)
+        leads_csv = leads_df.to_csv(index=False)
+        zf.writestr("leads.csv", leads_csv)
+        if sent_history:
+            zf.writestr("sent_history.json", json.dumps(sent_history, indent=2))
+        if log_md:
+            zf.writestr("log.md", log_md)
+
+    raw_zip = buf.getvalue()
+    salt = os.urandom(16)
+    key = derive_vault_key(password, salt)
+    fernet = Fernet(key)
+    ciphertext = fernet.encrypt(raw_zip)
+    return VAULT_MAGIC + salt + ciphertext
+
+
+def unpack_encrypted_vault(vault_bytes: bytes, password: str) -> dict:
+    """Decrypt and unpack an encrypted vault package."""
+    if not vault_bytes.startswith(VAULT_MAGIC):
+        raise ValueError("The uploaded file is not a valid FreeApply-AI Vault archive.")
+
+    salt = vault_bytes[8:24]
+    ciphertext = vault_bytes[24:]
+    key = derive_vault_key(password, salt)
+    fernet = Fernet(key)
+
+    try:
+        raw_zip = fernet.decrypt(ciphertext)
+    except InvalidToken:
+        raise ValueError("Incorrect password. Unable to decrypt vault.")
+
+    zf = zipfile.ZipFile(io.BytesIO(raw_zip))
+    names = zf.namelist()
+
+    restored = {}
+
+    # Config
+    if "config.json" in names:
+        restored["config"] = json.loads(zf.read("config.json").decode("utf-8"))
+
+    # Resume
+    for name in names:
+        if name.endswith(".pdf") or (name.startswith("resume") and not name.endswith(".csv") and not name.endswith(".json")):
+            restored["resume_bytes"] = zf.read(name)
+            restored["resume_filename"] = name
+            break
+
+    # Leads
+    if "leads.csv" in names:
+        try:
+            restored["leads_df"] = pd.read_csv(io.StringIO(zf.read("leads.csv").decode("utf-8")))
+        except Exception:
+            restored["leads_df"] = pd.read_csv(io.StringIO(zf.read("leads.csv").decode("utf-8")), on_bad_lines="skip")
+
+    # Sent history
+    if "sent_history.json" in names:
+        restored["sent_history"] = json.loads(zf.read("sent_history.json").decode("utf-8"))
+
+    return restored
+
+
+# --- Streamlit Page Config ---
 st.set_page_config(
     page_title="FreeApply-AI",
     page_icon="🚀",
@@ -33,7 +130,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Custom CSS for clean mobile experience
 st.markdown(
     """
     <style>
@@ -48,6 +144,13 @@ st.markdown(
     .sub-title {
         color: #64748b;
         font-size: 1.05rem;
+        margin-bottom: 1.2rem;
+    }
+    .vault-card {
+        background-color: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 10px;
+        padding: 1.2rem;
         margin-bottom: 1.5rem;
     }
     .card {
@@ -65,7 +168,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Initialize session state
+# Load defaults from .env if running locally
 local_env = send_outreach.load_env(os.path.join(BASE_DIR, ".env"))
 
 if "sender_name" not in st.session_state:
@@ -83,7 +186,6 @@ if "resume_bytes" not in st.session_state:
 if "resume_filename" not in st.session_state:
     st.session_state.resume_filename = "resume.pdf"
 if "leads_df" not in st.session_state:
-    # Load default example leads safely
     example_path = os.path.join(BASE_DIR, "leads.example.csv")
     if os.path.exists(example_path):
         try:
@@ -97,24 +199,111 @@ if "leads_df" not in st.session_state:
         st.session_state.leads_df = pd.DataFrame(columns=["name", "email", "company", "role", "custom_hook"])
 if "sent_history" not in st.session_state:
     st.session_state.sent_history = []
+if "vault_password" not in st.session_state:
+    st.session_state.vault_password = ""
 
 
 # --- Header ---
 st.markdown('<div class="main-title">🚀 FreeApply-AI</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub-title">100% Free, Automated & AI-Personalized Job Outreach Engine</div>',
+    '<div class="sub-title">100% Free, Automated & AI-Personalized Cold Outreach Engine</div>',
     unsafe_allow_html=True,
 )
 
+# --- Welcome / Session Mode Selector ---
+with st.container():
+    mode_selection = st.radio(
+        "Start Session:",
+        ["✨ Fresh Session / New User", "🔐 Resume with Encrypted Vault"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    if mode_selection == "🔐 Resume with Encrypted Vault":
+        st.markdown(
+            """
+            <div class="vault-card">
+                <b>📂 Unlock Your Encrypted Vault</b><br>
+                <span style="color:#475569; font-size:0.9rem;">
+                    Upload your <code>FreeApply_Vault.zip</code> and enter your password to instantly restore your credentials, resume, leads table, and touch history.
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col_v1, col_v2 = st.columns([2, 1])
+        with col_v1:
+            uploaded_vault = st.file_uploader(
+                "Select Vault File",
+                type=["zip", "vault", "enc"],
+                key="vault_uploader",
+                label_visibility="collapsed",
+            )
+        with col_v2:
+            unlock_password = st.text_input(
+                "Vault Password",
+                type="password",
+                placeholder="Enter password chosen during export",
+                key="vault_unlock_pass",
+            )
+            unlock_button = st.button("🔓 Unlock & Restore Session", use_container_width=True)
+
+        if unlock_button:
+            if not uploaded_vault:
+                st.error("Please select your `FreeApply_Vault.zip` file first.")
+            elif not unlock_password:
+                st.error("Please enter the password for this vault.")
+            else:
+                try:
+                    vault_data = uploaded_vault.read()
+                    restored = unpack_encrypted_vault(vault_data, unlock_password)
+
+                    # Restore config
+                    cfg = restored.get("config", {})
+                    st.session_state.sender_name = cfg.get("sender_name", "")
+                    st.session_state.smtp_email = cfg.get("smtp_email", "")
+                    st.session_state.smtp_password = cfg.get("smtp_password", "")
+                    st.session_state.gemini_api_key = cfg.get("gemini_api_key", "")
+                    st.session_state.vault_password = unlock_password
+
+                    # Restore resume
+                    if "resume_bytes" in restored:
+                        st.session_state.resume_bytes = restored["resume_bytes"]
+                        st.session_state.resume_filename = restored.get("resume_filename", "resume.pdf")
+                        try:
+                            import fitz
+                            doc = fitz.open(stream=st.session_state.resume_bytes, filetype="pdf")
+                            extracted = ""
+                            for page in doc:
+                                extracted += page.get_text() + "\n"
+                            st.session_state.resume_text = extracted.strip()
+                        except Exception:
+                            st.session_state.resume_text = st.session_state.resume_bytes.decode("utf-8", errors="ignore")
+
+                    # Restore leads
+                    if "leads_df" in restored:
+                        st.session_state.leads_df = restored["leads_df"]
+
+                    # Restore history
+                    if "sent_history" in restored:
+                        st.session_state.sent_history = restored["sent_history"]
+
+                    st.success(f"🎉 Vault unlocked successfully! Welcome back, {st.session_state.sender_name or 'there'}. All credentials, resume, leads, and history restored.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ {e}")
+
+st.divider()
+
 # Navigation tabs
-tabs = st.tabs(["⚙️ Profile & Setup", "🎯 Leads & AI Hooks", "✉️ Preview & Send", "📊 Knowledge Graph"])
+tabs = st.tabs(["⚙️ Profile & Setup", "🎯 Leads & AI Hooks", "✉️ Preview & Send", "📊 Knowledge Graph & Vault"])
 
 # ==============================================================================
 # TAB 1: Profile & Credentials Setup
 # ==============================================================================
 with tabs[0]:
     st.subheader("1. Candidate & SMTP Settings")
-    st.caption("Your credentials stay only in your current browser session memory for privacy.")
+    st.caption("Your credentials stay only in temporary browser session memory for privacy.")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -151,7 +340,6 @@ with tabs[0]:
         st.session_state.resume_bytes = uploaded_resume.read()
         st.session_state.resume_filename = uploaded_resume.name
 
-        # Extract text
         if uploaded_resume.name.lower().endswith(".pdf"):
             try:
                 import fitz
@@ -166,6 +354,8 @@ with tabs[0]:
         else:
             st.session_state.resume_text = st.session_state.resume_bytes.decode("utf-8", errors="ignore")
             st.success(f"Loaded text resume ({len(st.session_state.resume_text.split())} words)")
+    elif st.session_state.resume_bytes:
+        st.info(f"Using attached resume from vault: **{st.session_state.resume_filename}** ({len(st.session_state.resume_text.split())} words)")
 
     if st.session_state.resume_text:
         with st.expander("👁️ View Extracted Resume Profile"):
@@ -234,7 +424,7 @@ with tabs[1]:
                     st.session_state.leads_df = pd.read_csv(uploaded_csv, on_bad_lines="skip")
                     if "custom_hook" not in st.session_state.leads_df.columns:
                         st.session_state.leads_df["custom_hook"] = ""
-                    st.warning(f"Loaded {len(st.session_state.leads_df)} leads (some improperly formatted rows were skipped).")
+                    st.warning(f"Loaded {len(st.session_state.leads_df)} leads (some rows with formatting errors were skipped).")
                 except Exception as inner_e:
                     st.error(f"Error parsing CSV file: {inner_e}")
     with col_eg:
@@ -306,7 +496,6 @@ with tabs[1]:
 with tabs[2]:
     st.subheader("Email Template & Dispatch")
 
-    # Template selection
     template_files = {
         "Operations Outreach": os.path.join(TEMPLATES_DIR, "operations_outreach.txt"),
         "Engineering Outreach": os.path.join(TEMPLATES_DIR, "engineering_outreach.txt"),
@@ -341,7 +530,6 @@ with tabs[2]:
             "sender_name": st.session_state.sender_name or "Your Name",
         }
 
-        # Substitute in memory
         rendered = template_text
         for k, v in sample_data.items():
             rendered = rendered.replace(f"{{{{{k}}}}}", str(v))
@@ -406,7 +594,6 @@ with tabs[2]:
                             "sender_name": st.session_state.sender_name or "Job Seeker",
                         }
 
-                        # Render
                         rendered = template_text
                         for k, v in lead_data.items():
                             rendered = rendered.replace(f"{{{{{k}}}}}", str(v))
@@ -452,7 +639,6 @@ with tabs[2]:
 
                         progress_bar.progress(i / total_leads)
 
-                        # Delay between sends to protect reputation
                         if i < total_leads:
                             delay = random.randint(30, 45)
                             status_placeholder.text(f"Waiting {delay}s before next send to protect inbox reputation...")
@@ -465,23 +651,11 @@ with tabs[2]:
 
 
 # ==============================================================================
-# TAB 4: Knowledge Graph & Audit Trail
+# TAB 4: Knowledge Graph & Encrypted Session Vault
 # ==============================================================================
 with tabs[3]:
-    st.subheader("Knowledge Graph & Touch History")
-    st.caption("Track touch history, recipient nodes, and export your offline audit trail directly to your phone.")
-
-    if st.session_state.sent_history:
-        history_df = pd.DataFrame(st.session_state.sent_history)
-        st.dataframe(history_df, use_container_width=True)
-    else:
-        st.info("No emails sent in this session yet. Sent outreach will appear here.")
-
-    st.divider()
-
-    # Knowledge Graph Generator
-    st.subheader("📥 Export Knowledge Graph to Phone / PC")
-    st.caption("Download your persistent audit log so your records never get lost.")
+    st.subheader("Knowledge Graph & Encrypted Session Vault")
+    st.caption("Securely package your credentials, resume, leads table, and touch history into a single password-protected file.")
 
     # Generate log.md content
     log_md_lines = [
@@ -489,7 +663,7 @@ with tabs[3]:
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"Candidate: {st.session_state.sender_name or 'Candidate'}",
         "",
-        "## Outreach Nodes & History",
+        "## Outreach Nodes & Touch History",
         "",
     ]
 
@@ -501,32 +675,98 @@ with tabs[3]:
 
     log_md_content = "\n".join(log_md_lines)
 
-    col_dl1, col_dl2, col_dl3 = st.columns(3)
-    with col_dl1:
-        st.download_button(
-            "📥 Download log.md (Knowledge Graph)",
-            data=log_md_content,
-            file_name="log.md",
-            mime="text/markdown",
+    # --- VAULT EXPORT CARD ---
+    st.markdown(
+        """
+        <div class="vault-card">
+            <h4>🔒 Export Encrypted Vault (All-In-One Backup)</h4>
+            <span style="color:#475569; font-size:0.9rem;">
+                This creates a single <code>FreeApply_Vault.zip</code> encrypted with your password (AES-256).
+                It bundles your Gmail credentials, Gemini key, uploaded resume, leads, and touch history so you never have to retype them.
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_p1, col_p2 = st.columns([2, 1])
+    with col_p1:
+        vault_export_password = st.text_input(
+            "Choose a Vault Password",
+            type="password",
+            value=st.session_state.vault_password,
+            placeholder="Choose a memorable password or PIN",
+            help="You will need this password to unlock your vault next time you open the app.",
         )
-    with col_dl2:
-        if st.session_state.sent_history:
-            csv_buf = io.StringIO()
-            pd.DataFrame(st.session_state.sent_history).to_csv(csv_buf, index=False)
+    with col_p2:
+        st.write("")
+        st.write("")
+        if vault_export_password:
+            config_payload = {
+                "sender_name": st.session_state.sender_name,
+                "smtp_email": st.session_state.smtp_email,
+                "smtp_password": st.session_state.smtp_password,
+                "gemini_api_key": st.session_state.gemini_api_key,
+            }
+            try:
+                encrypted_vault_bytes = pack_encrypted_vault(
+                    password=vault_export_password,
+                    config=config_payload,
+                    leads_df=st.session_state.leads_df,
+                    sent_history=st.session_state.sent_history,
+                    resume_bytes=st.session_state.resume_bytes,
+                    resume_filename=st.session_state.resume_filename,
+                    log_md=log_md_content,
+                )
+                st.download_button(
+                    "💾 Download FreeApply_Vault.zip",
+                    data=encrypted_vault_bytes,
+                    file_name="FreeApply_Vault.zip",
+                    mime="application/zip",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.error(f"Error packing vault: {e}")
+        else:
+            st.button("💾 Download FreeApply_Vault.zip", disabled=True, use_container_width=True)
+            st.caption("Enter a password to enable download.")
+
+    st.divider()
+
+    st.subheader("Touch History & Delivery Log")
+    if st.session_state.sent_history:
+        history_df = pd.DataFrame(st.session_state.sent_history)
+        st.dataframe(history_df, use_container_width=True)
+    else:
+        st.info("No outreach dispatched in this session yet. Sent emails will appear here.")
+
+    with st.expander("📄 Export Individual Files (Optional)"):
+        col_dl1, col_dl2, col_dl3 = st.columns(3)
+        with col_dl1:
             st.download_button(
-                "📥 Download sent_history.csv",
-                data=csv_buf.getvalue(),
-                file_name="sent_history.csv",
+                "📥 Download log.md",
+                data=log_md_content,
+                file_name="log.md",
+                mime="text/markdown",
+            )
+        with col_dl2:
+            if st.session_state.sent_history:
+                csv_buf = io.StringIO()
+                pd.DataFrame(st.session_state.sent_history).to_csv(csv_buf, index=False)
+                st.download_button(
+                    "📥 Download sent_history.csv",
+                    data=csv_buf.getvalue(),
+                    file_name="sent_history.csv",
+                    mime="text/csv",
+                )
+            else:
+                st.button("📥 Download sent_history.csv", disabled=True)
+        with col_dl3:
+            leads_buf = io.StringIO()
+            st.session_state.leads_df.to_csv(leads_buf, index=False)
+            st.download_button(
+                "📥 Download leads.csv",
+                data=leads_buf.getvalue(),
+                file_name="leads.csv",
                 mime="text/csv",
             )
-        else:
-            st.button("📥 Download sent_history.csv", disabled=True)
-    with col_dl3:
-        leads_buf = io.StringIO()
-        st.session_state.leads_df.to_csv(leads_buf, index=False)
-        st.download_button(
-            "📥 Download leads.csv",
-            data=leads_buf.getvalue(),
-            file_name="leads.csv",
-            mime="text/csv",
-        )
