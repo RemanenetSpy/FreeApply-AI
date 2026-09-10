@@ -22,12 +22,14 @@ Millions of talented job seekers face two crippling roadblocks:
 
 ## ✨ Features
 
+* 📱 **Mobile & Desktop Web UI (`app.py`):** Clean, zero-terminal interface accessible on any Android or iOS device or desktop browser.
 * 🤖 **AI-Powered Personalization (`personalize.py`):** Uses Google Gemini 2.5 Flash to read your resume PDF and craft authentic, company-specific 1–2 sentence opening hooks for every lead.
 * 🛡️ **Anti-Spam & Inbox Reputation Guard:** Hardcoded randomized 30–60s delays between sends, duplicate email detection, and a default 35 emails/day safety cap to protect your Gmail reputation.
 * 👁️ **Dry-Run Mode by Default:** Preview exactly what every recruiter will receive before a single email is dispatched.
 * 📎 **Seamless Resume Attachment:** Automatically attaches your PDF resume with proper MIME encoding.
 * 🔁 **Automated Follow-Up Pipeline:** Seamlessly follow up on unresponded applications with custom follow-up templates and automatic subject threading (`Re: ...`).
-* 🔒 **Local & 100% Private:** Your leads, sent history, credentials, and resume never leave your local computer.
+* 📊 **Persistent Knowledge Graph:** Export your candidate $\rightarrow$ company touch graph (`log.md`) directly to your phone or laptop.
+* 🔒 **Local & 100% Private:** Your leads, sent history, credentials, and resume never leave your local session.
 
 ---
 
@@ -38,12 +40,13 @@ FreeApply-AI/
 ├── .gitignore               # Strict ignore rules for .env, PDFs, and personal CSVs
 ├── .env.example             # Clean configuration template
 ├── LICENSE                  # Permissive MIT License
-├── requirements.txt         # Core dependencies (google-genai, pymupdf, python-dotenv)
+├── requirements.txt         # Dependencies (streamlit, google-genai, pymupdf, python-dotenv)
 ├── README.md                # Project documentation
+├── app.py                   # Mobile & desktop Streamlit Web App
+├── send_outreach.py         # Core email automation engine (SMTP, throttling, dry-run)
+├── personalize.py           # Gemini AI hook generator CLI
 ├── leads.example.csv        # Starter spreadsheet format for your leads
 ├── followups.example.csv    # Starter format for follow-ups
-├── send_outreach.py         # Core email automation engine (SMTP, throttling, dry-run)
-├── personalize.py           # Gemini AI hook generator
 └── templates/               # Modular email templates
     ├── operations_outreach.txt
     ├── engineering_outreach.txt
@@ -94,7 +97,30 @@ Alex Smith,alex.smith@techinnovators.io,TechInnovators,Backend Engineer,
 
 ---
 
-## 🛠️ Usage Guide
+## 🌐 Launch the Web Interface (Zero Terminal / Mobile Friendly)
+
+Run the local Streamlit web application:
+```bash
+streamlit run app.py
+```
+This opens an intuitive, mobile-responsive dashboard in your browser where you can:
+* **Upload Resume & Credentials**: Enter your Gmail App Password and upload your resume PDF through clean forms.
+* **Edit Leads in Real-Time**: View and edit your leads in an interactive data table.
+* **1-Tap AI Personalization**: Tap **"🤖 Generate AI Hooks"** to let Gemini 2.5 Flash research and craft opening hooks.
+* **Live Email Preview & Dispatch**: Inspect rendered emails and dispatch with safe 30–45s randomized delays.
+* **Export Knowledge Graph**: Download your updated touch history (`log.md`) and delivery logs (`sent_history.csv`) directly to your phone or PC.
+
+### 📱 Free Cloud Deployment for Android & iOS (No Computer Needed)
+Anyone can access their own private outreach app from an iPhone or Android phone without installing anything:
+1. Fork or push this repository to GitHub.
+2. Go to **[share.streamlit.io](https://share.streamlit.io/)** (100% free) and sign in with GitHub.
+3. Click **"New App"**, select `FreeApply-AI`, and set the file path to `app.py`.
+4. Click **Deploy**!
+5. Open your app link on your phone's browser, bookmark it or tap **"Add to Home Screen"**, and run your job hunt from anywhere.
+
+---
+
+## 🛠️ Usage Guide (CLI Option)
 
 ### Step 1: AI Personalization (Optional)
 
