@@ -624,6 +624,62 @@ elif st.session_state.od_mode == "02 · Pipeline Radar":
                 st.session_state.leads_df = pd.read_csv(example_p)
                 st.info("Reset to 3 starter leads.")
 
+    # Live Web Lead Scout with Google Search Grounding
+    with st.expander("Live Web Lead Scout (Gemini 2.5 + Google Search Grounding)", expanded=False):
+        st.markdown(
+            """
+            <div style="font-size:0.8rem; color:#94a3b8; margin-bottom:0.6rem;">
+                Executes live Google Web Search queries to identify authentic corporate entities, verified HR / careers contacts, and expansion news in real-time.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col_ls1, col_ls2 = st.columns(2)
+        with col_ls1:
+            scout_roles = st.text_input("Target Roles", value="Operations Lead, Cluster Manager, Property Manager", key="scout_roles")
+            scout_locations = st.text_input("Target Locations", value="Bengaluru, NCR/Gurgaon, Mumbai, Pan-India", key="scout_locations")
+        with col_ls2:
+            scout_industry = st.text_input("Industry / Verticals", value="Co-living, PropTech, Quick Commerce, Logistics, Hospitality", key="scout_industry")
+            scout_count = st.selectbox("Batch Size", [3, 5, 10], index=1, key="scout_count")
+
+        col_act_scout1, col_act_scout2 = st.columns([2, 1])
+        with col_act_scout1:
+            replace_existing = st.checkbox("Replace existing leads table with discovered results", value=False, key="scout_replace")
+        with col_act_scout2:
+            if st.button("Launch Web Scout", type="primary", use_container_width=True):
+                if not st.session_state.gemini_api_key:
+                    st.error("Configure Gemini API Key in '01 · Vault & Identity' first.")
+                else:
+                    with st.spinner("Executing Google Search Grounding to verify active hiring companies and HR desks..."):
+                        try:
+                            from google import genai
+                            client = genai.Client(api_key=st.session_state.gemini_api_key.strip())
+                            found_leads = personalize.scout_leads_with_google_search(
+                                client,
+                                target_roles=scout_roles,
+                                target_locations=scout_locations,
+                                industry_or_keywords=scout_industry,
+                                num_leads=scout_count,
+                                candidate_summary=st.session_state.resume_text,
+                            )
+                            if not found_leads:
+                                st.warning("No verified leads passed multi-source filters. Try broadening criteria.")
+                            else:
+                                new_df = pd.DataFrame(found_leads)
+                                for col in ["name", "email", "company", "role", "custom_hook"]:
+                                    if col not in new_df.columns:
+                                        new_df[col] = ""
+
+                                if replace_existing or st.session_state.leads_df.empty or "examplecorp" in str(st.session_state.leads_df.iloc[0].get("company", "")).lower():
+                                    st.session_state.leads_df = new_df
+                                else:
+                                    st.session_state.leads_df = pd.concat([st.session_state.leads_df, new_df], ignore_index=True).drop_duplicates(subset=["email"])
+
+                                st.success(f"Discovered and verified {len(found_leads)} live leads from web search.")
+                                st.rerun()
+                        except Exception as err:
+                            st.error(f"Web scout failed: {err}")
+
     # Data Editor
     st.session_state.leads_df = st.data_editor(
         st.session_state.leads_df,

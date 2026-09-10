@@ -86,7 +86,75 @@ CRITICAL RULES:
         return response.text.strip().strip("\"'")
     except Exception as e:
         print(f"[!] Gemini generation error for {company}: {e}")
-        return ""
+def scout_leads_with_google_search(
+    client,
+    target_roles: str,
+    target_locations: str,
+    industry_or_keywords: str,
+    num_leads: int = 5,
+    candidate_summary: str = "",
+) -> list:
+    """
+    Leverages Gemini 2.5 with Google Search Grounding to discover verified hiring companies,
+    official corporate HR / careers contacts, and real-time operational context.
+    """
+    import json
+    import re
+    from google.genai import types
+
+    prompt = f"""You are an elite corporate talent acquisition researcher.
+Perform a live Google Search to discover authentic companies actively operating and hiring in the targeted market.
+
+Target Roles: {target_roles}
+Target Locations: {target_locations}
+Industry / Vertical: {industry_or_keywords}
+Required Number of Companies: {num_leads}
+
+Candidate Background Summary:
+\"\"\"{candidate_summary[:1500]}\"\"\"
+
+AUTHENTICITY & VERIFICATION RULES (MANDATORY):
+1. REAL COMPANIES ONLY: Active businesses with verified corporate web presence (e.g., Co-living, PropTech, Quick Commerce, Logistics, Hospitality).
+2. VERIFIABLE CORPORATE EMAIL: Official corporate careers/talent desk (e.g. careers@company.com, jobs@company.com, hr@company.com, talent@company.com) or named talent acquisition contact. NO disposable or spam addresses.
+3. NO THIRD-PARTY AGGREGATORS: Skip third-party consultancies, generic job scrapers (e.g. Indeed/Naukri scraper pages), or fee-charging agencies.
+4. TAILORED HOOK: For each company, write a 1-2 sentence hook connecting the candidate's operational capabilities (process optimization, SOP enforcement, facility/resident management, vendor SLAs) to the company's real expansion or market presence.
+5. ROLE FIT: Match transferable operational titles (Operations Lead, Cluster Manager, Property Manager, Facility Lead, Service Operations).
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON array of objects enclosed in a ```json ``` block. No other conversational text.
+Schema:
+```json
+[
+  {{
+    "company": "Company Name",
+    "role": "Specific Target Role",
+    "name": "Hiring Team or Contact Name",
+    "email": "verified.email@company.com",
+    "custom_hook": "1-2 sentence high-converting personalized hook."
+  }}
+]
+```
+"""
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
+        )
+        raw_text = response.text or ""
+        match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", raw_text, re.DOTALL)
+        if match:
+            return json.loads(match.group(1))
+        start = raw_text.find("[")
+        end = raw_text.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(raw_text[start : end + 1])
+        return []
+    except Exception as e:
+        print(f"[!] Lead scouting error: {e}")
+        return []
 
 
 def main():
