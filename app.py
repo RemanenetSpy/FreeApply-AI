@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-FreeApply-AI: Command Pipeline & Outreach Studio
-------------------------------------------------
-A high-trust, neuro-aesthetic web interface for automated cold outreach,
-Gemini AI personalization, and password-encrypted session vault management.
+FreeApply-AI — Executive Cold Outreach Engine
+---------------------------------------------
+Engineered according to high-trust UI/UX principles, mobile viewport ergonomics,
+and zero-dependency cryptographic session vault persistence.
 
-Designed using principles of cognitive clarity, trust engineering, and
-modern design systems.
+No generic AI clichés. No gratuitous emojis. Designed for executive focus and trust.
 """
 
 import base64
@@ -25,7 +24,6 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import pandas as pd
 import streamlit as st
 
-# Core automation modules
 import send_outreach
 import personalize
 
@@ -34,7 +32,7 @@ TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 VAULT_MAGIC = b"FAVAULT1"
 
 
-# --- Vault Cryptography Helpers ---
+# --- Cryptographic Helpers ---
 def derive_vault_key(password: str, salt: bytes) -> bytes:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -59,8 +57,7 @@ def pack_encrypted_vault(
         zf.writestr("config.json", json.dumps(config, indent=2))
         if resume_bytes:
             zf.writestr(resume_filename or "resume.pdf", resume_bytes)
-        leads_csv = leads_df.to_csv(index=False)
-        zf.writestr("leads.csv", leads_csv)
+        zf.writestr("leads.csv", leads_df.to_csv(index=False))
         if sent_history:
             zf.writestr("sent_history.json", json.dumps(sent_history, indent=2))
         if log_md:
@@ -69,24 +66,21 @@ def pack_encrypted_vault(
     raw_zip = buf.getvalue()
     salt = os.urandom(16)
     key = derive_vault_key(password, salt)
-    fernet = Fernet(key)
-    ciphertext = fernet.encrypt(raw_zip)
-    return VAULT_MAGIC + salt + ciphertext
+    return VAULT_MAGIC + salt + Fernet(key).encrypt(raw_zip)
 
 
 def unpack_encrypted_vault(vault_bytes: bytes, password: str) -> dict:
     if not vault_bytes.startswith(VAULT_MAGIC):
-        raise ValueError("The uploaded file is not a valid FreeApply-AI Vault archive.")
+        raise ValueError("Invalid vault format. Please provide a genuine FreeApply vault archive.")
 
     salt = vault_bytes[8:24]
     ciphertext = vault_bytes[24:]
     key = derive_vault_key(password, salt)
-    fernet = Fernet(key)
 
     try:
-        raw_zip = fernet.decrypt(ciphertext)
+        raw_zip = Fernet(key).decrypt(ciphertext)
     except InvalidToken:
-        raise ValueError("Incorrect password. Unable to decrypt vault.")
+        raise ValueError("Decryption failed. Incorrect vault password.")
 
     zf = zipfile.ZipFile(io.BytesIO(raw_zip))
     names = zf.namelist()
@@ -113,210 +107,197 @@ def unpack_encrypted_vault(vault_bytes: bytes, password: str) -> dict:
     return restored
 
 
-# --- Page Config ---
+# --- Application Setup ---
 st.set_page_config(
-    page_title="FreeApply-AI — Executive Outreach Studio",
-    page_icon="⚡",
+    page_title="FreeApply-AI",
+    page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# --- Neuro-Aesthetic Styling (Glassmorphism, High-Trust Tokens, Elevated Surfaces) ---
+# --- Executive Design System & Mobile Viewport Constraints ---
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+    /* Global reset & typography */
     html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-        text-rendering: optimizeLegibility;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #f1f5f9;
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Core Hero Banner */
-    .hero-container {
+    /* Remove Streamlit default excessive padding for mobile viewport fit */
+    .block-container {
+        padding-top: 0.75rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 0.85rem !important;
+        padding-right: 0.85rem !important;
+        max-width: 960px !important;
+    }
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+    footer {
+        display: none !important;
+    }
+
+    /* Executive Navigation Bar */
+    .app-nav {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1.25rem 1.5rem;
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
-    }
-    .hero-title {
-        font-size: 1.75rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        background: linear-gradient(120deg, #60a5fa 0%, #a855f7 50%, #38bdf8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin: 0;
-    }
-    .hero-tagline {
-        color: #94a3b8;
-        font-size: 0.88rem;
-        margin-top: 0.25rem;
-        font-weight: 500;
-    }
-
-    /* Telemetry HUD Cards */
-    .hud-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        gap: 0.85rem;
-        margin-bottom: 1.5rem;
-    }
-    .hud-tile {
-        background: rgba(15, 23, 42, 0.65);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 0.75rem 1rem;
+        background: #0d121d;
+        border: 1px solid #1e2638;
         border-radius: 12px;
-        padding: 0.9rem 1.1rem;
-        transition: transform 180ms ease, border-color 180ms ease;
+        margin-bottom: 0.75rem;
     }
-    .hud-tile:hover {
-        border-color: rgba(96, 165, 250, 0.3);
-        transform: translateY(-2px);
-    }
-    .hud-label {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #94a3b8;
-        font-weight: 600;
-        margin-bottom: 0.35rem;
+    .brand-mark {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #f8fafc;
         display: flex;
         align-items: center;
-        gap: 0.4rem;
+        gap: 0.5rem;
     }
-    .hud-value {
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: #f8fafc;
-        font-variant-numeric: tabular-nums;
+    .brand-pill {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        background: #1e293b;
+        color: #94a3b8;
+        border: 1px solid #334155;
     }
 
-    /* Pulse Status Dots */
-    .pulse-dot {
-        width: 8px;
-        height: 8px;
+    /* Compact Telemetry Strip */
+    .telemetry-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 0.85rem;
+    }
+    .telemetry-cell {
+        background: #0d121d;
+        border: 1px solid #1a2234;
+        border-radius: 8px;
+        padding: 0.5rem 0.75rem;
+    }
+    .telemetry-label {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: #64748b;
+        margin-bottom: 0.15rem;
+    }
+    .telemetry-val {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #e2e8f0;
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    /* Live status dot */
+    .indicator-dot {
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
         display: inline-block;
     }
-    .dot-green {
-        background-color: #10b981;
-        box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
-    }
-    .dot-blue {
-        background-color: #38bdf8;
-        box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    .dot-active { background: #10b981; }
+    .dot-idle { background: #64748b; }
+
+    /* Concentric Section Cards */
+    .section-card {
+        background: #0d121d;
+        border: 1px solid #1e2638;
+        border-radius: 12px;
+        padding: 1.1rem;
+        margin-bottom: 0.85rem;
     }
 
-    /* Glass Surface Panel */
-    .glass-deck {
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+    /* Email Preview Canvas */
+    .email-container {
+        background: #080c14;
+        border: 1px solid #243048;
+        border-radius: 10px;
+        padding: 1.1rem;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
-
-    /* Superhuman-Style Email Canvas */
-    .email-canvas {
-        background: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 1.5rem;
-        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-    }
-    .email-meta-row {
+    .email-row {
         display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.45rem 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        font-size: 0.88rem;
+        font-size: 0.82rem;
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #141b2a;
     }
-    .email-meta-label {
+    .email-key {
+        width: 70px;
+        font-weight: 600;
         color: #64748b;
-        font-weight: 600;
-        min-width: 60px;
     }
-    .chip-sender {
-        background: rgba(59, 130, 246, 0.15);
-        color: #93c5fd;
-        padding: 0.2rem 0.6rem;
-        border-radius: 6px;
-        border: 1px solid rgba(59, 130, 246, 0.3);
-        font-size: 0.82rem;
-        font-weight: 600;
-    }
-    .chip-recip {
-        background: rgba(168, 85, 247, 0.15);
-        color: #d8b4fe;
-        padding: 0.2rem 0.6rem;
-        border-radius: 6px;
-        border: 1px solid rgba(168, 85, 247, 0.3);
-        font-size: 0.82rem;
-        font-weight: 600;
-    }
-    .chip-attach {
-        background: rgba(16, 185, 129, 0.15);
-        color: #6ee7b7;
-        padding: 0.2rem 0.6rem;
-        border-radius: 6px;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        font-size: 0.82rem;
-        font-weight: 600;
-    }
-
-    /* Highlight Badges inside Email Body */
-    .hook-highlight {
-        background: rgba(16, 185, 129, 0.18);
-        color: #34d399;
-        padding: 0.15rem 0.45rem;
-        border-radius: 5px;
-        border-left: 3px solid #10b981;
+    .email-val {
+        color: #cbd5e1;
         font-weight: 500;
     }
-    .var-company {
-        background: rgba(168, 85, 247, 0.15);
-        color: #c084fc;
-        padding: 0.1rem 0.4rem;
-        border-radius: 4px;
-        font-weight: 600;
+    .email-body {
+        margin-top: 0.85rem;
+        line-height: 1.6;
+        font-size: 0.88rem;
+        color: #e2e8f0;
+        white-space: pre-wrap;
     }
-    .var-role {
-        background: rgba(56, 189, 248, 0.15);
-        color: #38bdf8;
-        padding: 0.1rem 0.4rem;
-        border-radius: 4px;
+
+    /* Typography highlight pills */
+    .hook-token {
+        background: rgba(16, 185, 129, 0.12);
+        color: #34d399;
+        border-left: 2px solid #10b981;
+        padding: 0.1rem 0.35rem;
+        border-radius: 3px;
+    }
+    .highlight-pill {
+        background: #1e293b;
+        color: #93c5fd;
+        padding: 0.05rem 0.35rem;
+        border-radius: 3px;
         font-weight: 600;
     }
 
-    /* Stepper Navigation Buttons */
+    /* Segmented Stage Control */
     div[data-testid="stRadio"] > div {
         display: flex;
-        justify-content: space-between;
-        gap: 0.5rem;
-        background: rgba(15, 23, 42, 0.7);
-        padding: 0.4rem;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: #0d121d;
+        border: 1px solid #1e2638;
+        border-radius: 10px;
+        padding: 0.25rem;
+        gap: 0.25rem;
     }
     div[data-testid="stRadio"] label {
-        background: transparent !important;
-        border-radius: 8px;
-        padding: 0.5rem 1rem !important;
+        padding: 0.4rem 0.75rem !important;
+        font-size: 0.82rem !important;
         font-weight: 600 !important;
+        border-radius: 6px !important;
     }
 
-    @media (max-width: 768px) {
-        .hero-container { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
-        .hud-grid { grid-template-columns: 1fr 1fr; }
+    /* Mobile Responsive Tightening */
+    @media (max-width: 640px) {
+        .telemetry-strip {
+            grid-template-columns: 1fr 1fr;
+        }
+        .block-container {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
     }
     </style>
     """,
@@ -326,8 +307,8 @@ st.markdown(
 # --- State Initialization ---
 local_env = send_outreach.load_env(os.path.join(BASE_DIR, ".env"))
 
-if "active_stage" not in st.session_state:
-    st.session_state.active_stage = "1. Identity & Vault"
+if "stage" not in st.session_state:
+    st.session_state.stage = "1. Identity"
 if "sender_name" not in st.session_state:
     st.session_state.sender_name = local_env.get("SENDER_NAME", "")
 if "smtp_email" not in st.session_state:
@@ -360,109 +341,105 @@ if "vault_password" not in st.session_state:
     st.session_state.vault_password = ""
 
 
-# --- Hero Command Banner ---
+# --- Top Executive Bar ---
+candidate_display = st.session_state.sender_name if st.session_state.sender_name else "Unassigned"
 st.markdown(
     f"""
-    <div class="hero-container">
-        <div>
-            <div class="hero-title">⚡ FreeApply-AI Command Studio</div>
-            <div class="hero-tagline">Hyper-personalized cold outreach engine • Zero monthly fees • 100% Client-Side Privacy</div>
+    <div class="app-nav">
+        <div class="brand-mark">
+            <span>FreeApply</span>
+            <span class="brand-pill">v2.1 Private</span>
         </div>
-        <div style="display:flex; gap:0.5rem; align-items:center;">
-            <span class="chip-sender">Candidate: {st.session_state.sender_name or 'Unregistered'}</span>
-            <span class="chip-attach">Vault: {'Encrypted' if st.session_state.vault_password else 'Active'}</span>
+        <div style="font-size:0.8rem; color:#94a3b8;">
+            Profile: <b style="color:#f1f5f9;">{candidate_display}</b>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# --- Real-Time Telemetry HUD ---
-leads_count = len(st.session_state.leads_df)
-hooks_ready = len(st.session_state.leads_df[st.session_state.leads_df["custom_hook"].astype(str).str.strip() != ""]) if leads_count > 0 else 0
-resume_status = f"{len(st.session_state.resume_text.split())} words" if st.session_state.resume_text else "Pending"
-smtp_status = "Connected" if (st.session_state.smtp_email and st.session_state.smtp_password) else "Setup Required"
+# --- Telemetry Strip ---
+leads_total = len(st.session_state.leads_df)
+hooks_done = len(st.session_state.leads_df[st.session_state.leads_df["custom_hook"].astype(str).str.strip() != ""]) if leads_total > 0 else 0
+smtp_ok = bool(st.session_state.smtp_email and st.session_state.smtp_password)
+resume_ok = bool(st.session_state.resume_bytes or st.session_state.resume_text)
 
 st.markdown(
     f"""
-    <div class="hud-grid">
-        <div class="hud-tile">
-            <div class="hud-label"><span class="pulse-dot dot-blue"></span> SMTP Delivery</div>
-            <div class="hud-value">{smtp_status}</div>
+    <div class="telemetry-strip">
+        <div class="telemetry-cell">
+            <div class="telemetry-label">SMTP Delivery</div>
+            <div class="telemetry-val">
+                <span class="indicator-dot {'dot-active' if smtp_ok else 'dot-idle'}"></span>
+                {'Online' if smtp_ok else 'Not Configured'}
+            </div>
         </div>
-        <div class="hud-tile">
-            <div class="hud-label"><span class="pulse-dot dot-green"></span> Resume Engine</div>
-            <div class="hud-value">{resume_status}</div>
+        <div class="telemetry-cell">
+            <div class="telemetry-label">Resume Parser</div>
+            <div class="telemetry-val">
+                <span class="indicator-dot {'dot-active' if resume_ok else 'dot-idle'}"></span>
+                {'Attached' if resume_ok else 'Pending'}
+            </div>
         </div>
-        <div class="hud-tile">
-            <div class="hud-label"><span class="pulse-dot dot-blue"></span> Target Pipeline</div>
-            <div class="hud-value">{leads_count} Leads Active</div>
+        <div class="telemetry-cell">
+            <div class="telemetry-label">Target Queue</div>
+            <div class="telemetry-val">{leads_total} Contacts</div>
         </div>
-        <div class="hud-tile">
-            <div class="hud-label"><span class="pulse-dot dot-green"></span> AI Enrichment</div>
-            <div class="hud-value">{hooks_ready}/{leads_count} Hooks Ready</div>
+        <div class="telemetry-cell">
+            <div class="telemetry-label">AI Hooks</div>
+            <div class="telemetry-val">{hooks_done}/{leads_total} Prepared</div>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# --- Guided Command Pipeline Stepper ---
-stage_labels = [
-    "1. Identity & Vault",
-    "2. Target Radar & AI",
-    "3. Executive Studio",
-    "4. Mission Control",
-]
-
-selected_stage = st.radio(
-    "Pipeline Stage",
-    stage_labels,
-    index=stage_labels.index(st.session_state.active_stage) if st.session_state.active_stage in stage_labels else 0,
+# --- Segmented Stage Navigation ---
+stages = ["1. Identity", "2. Lead Radar", "3. Composer", "4. Execution"]
+chosen_stage = st.radio(
+    "Workflow Navigation",
+    stages,
+    index=stages.index(st.session_state.stage) if st.session_state.stage in stages else 0,
     horizontal=True,
     label_visibility="collapsed",
 )
-st.session_state.active_stage = selected_stage
+st.session_state.stage = chosen_stage
 
-st.write("")
 
 # ==============================================================================
-# STAGE 1: Identity & Vault Deck
+# STAGE 1: Identity & Vault Management
 # ==============================================================================
-if st.session_state.active_stage == "1. Identity & Vault":
-    st.markdown("### 🔐 Stage 1: Identity, Credentials & Encrypted Vault")
-    st.caption("Provide your credentials securely. Everything remains inside temporary memory and can be encrypted into a single vault file.")
-
-    # Vault Unlock Box
-    with st.expander("📂 Have an existing Vault? Click to Unlock & Restore", expanded=(not st.session_state.smtp_email)):
+if st.session_state.stage == "1. Identity":
+    # Vault Restore Expander
+    with st.expander("Unlock Existing Session Vault (.zip)", expanded=(not smtp_ok)):
         col_v1, col_v2 = st.columns([3, 1])
         with col_v1:
             uploaded_vault = st.file_uploader(
                 "Upload FreeApply_Vault.zip",
                 type=["zip", "vault", "enc"],
-                key="stage1_vault_uploader",
+                key="vault_file_input",
+                label_visibility="collapsed",
             )
         with col_v2:
-            unlock_password = st.text_input(
+            unlock_pw = st.text_input(
                 "Vault Password",
                 type="password",
-                placeholder="Password",
-                key="stage1_unlock_pass",
+                placeholder="Vault Password",
+                key="vault_pw_input",
+                label_visibility="collapsed",
             )
-            if st.button("🔓 Unlock & Restore", use_container_width=True):
-                if not uploaded_vault:
-                    st.error("Please select your `FreeApply_Vault.zip` first.")
-                elif not unlock_password:
-                    st.error("Please enter your vault password.")
+            if st.button("Unlock Vault", use_container_width=True):
+                if not uploaded_vault or not unlock_pw:
+                    st.error("Please provide both the vault file and password.")
                 else:
                     try:
-                        restored = unpack_encrypted_vault(uploaded_vault.read(), unlock_password)
+                        restored = unpack_encrypted_vault(uploaded_vault.read(), unlock_pw)
                         cfg = restored.get("config", {})
                         st.session_state.sender_name = cfg.get("sender_name", "")
                         st.session_state.smtp_email = cfg.get("smtp_email", "")
                         st.session_state.smtp_password = cfg.get("smtp_password", "")
                         st.session_state.gemini_api_key = cfg.get("gemini_api_key", "")
-                        st.session_state.vault_password = unlock_password
+                        st.session_state.vault_password = unlock_pw
 
                         if "resume_bytes" in restored:
                             st.session_state.resume_bytes = restored["resume_bytes"]
@@ -470,8 +447,7 @@ if st.session_state.active_stage == "1. Identity & Vault":
                             try:
                                 import fitz
                                 doc = fitz.open(stream=st.session_state.resume_bytes, filetype="pdf")
-                                extracted = "".join([page.get_text() + "\n" for page in doc])
-                                st.session_state.resume_text = extracted.strip()
+                                st.session_state.resume_text = "".join([p.get_text() + "\n" for p in doc]).strip()
                             except Exception:
                                 st.session_state.resume_text = st.session_state.resume_bytes.decode("utf-8", errors="ignore")
 
@@ -480,42 +456,41 @@ if st.session_state.active_stage == "1. Identity & Vault":
                         if "sent_history" in restored:
                             st.session_state.sent_history = restored["sent_history"]
 
-                        st.success(f"🎉 Vault unlocked! Welcome back, {st.session_state.sender_name}.")
-                        st.session_state.active_stage = "2. Target Radar & AI"
+                        st.success(f"Vault restored for {st.session_state.sender_name}.")
+                        st.session_state.stage = "2. Lead Radar"
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ {e}")
+                    except Exception as err:
+                        st.error(str(err))
 
-    # Manual Credentials Inputs
-    col1, col2 = st.columns(2)
-    with col1:
+    # Configuration Inputs
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
         st.session_state.sender_name = st.text_input(
-            "Your Full Name",
+            "Full Name",
             value=st.session_state.sender_name,
-            placeholder="e.g. Shiv Sharma",
+            placeholder="Jane Doe",
         )
         st.session_state.smtp_email = st.text_input(
-            "Your Gmail Address",
+            "Gmail Address",
             value=st.session_state.smtp_email,
-            placeholder="e.g. shivshankar.s2003@gmail.com",
+            placeholder="janedoe@gmail.com",
         )
-    with col2:
+    with col_c2:
         st.session_state.smtp_password = st.text_input(
-            "Gmail 16-Character App Password",
+            "Gmail 16-Char App Password",
             value=st.session_state.smtp_password,
             type="password",
-            help="Generate at myaccount.google.com/apppasswords with 2FA enabled",
+            help="Generate at myaccount.google.com/apppasswords with 2FA active",
         )
         st.session_state.gemini_api_key = st.text_input(
-            "Google Gemini API Key (Free tier)",
+            "Google Gemini API Key",
             value=st.session_state.gemini_api_key,
             type="password",
-            help="Get free key at aistudio.google.com/app/apikey",
+            help="Free key available at aistudio.google.com/app/apikey",
         )
 
-    st.write("")
-    st.markdown("#### 📄 Resume Profile")
-    uploaded_resume = st.file_uploader("Upload PDF or TXT Resume", type=["pdf", "txt"])
+    # Resume File Handler
+    uploaded_resume = st.file_uploader("Candidate Resume (PDF or TXT)", type=["pdf", "txt"])
     if uploaded_resume is not None:
         st.session_state.resume_bytes = uploaded_resume.read()
         st.session_state.resume_filename = uploaded_resume.name
@@ -523,27 +498,26 @@ if st.session_state.active_stage == "1. Identity & Vault":
             try:
                 import fitz
                 doc = fitz.open(stream=st.session_state.resume_bytes, filetype="pdf")
-                extracted = "".join([page.get_text() + "\n" for page in doc])
-                st.session_state.resume_text = extracted.strip()
-                st.success(f"Extracted {len(st.session_state.resume_text.split())} words from {uploaded_resume.name}")
+                st.session_state.resume_text = "".join([p.get_text() + "\n" for p in doc]).strip()
+                st.caption(f"Loaded {uploaded_resume.name} ({len(st.session_state.resume_text.split())} words)")
             except Exception as e:
-                st.error(f"Failed parsing PDF: {e}")
+                st.error(f"Error reading PDF: {e}")
         else:
             st.session_state.resume_text = st.session_state.resume_bytes.decode("utf-8", errors="ignore")
-            st.success("Loaded text resume.")
+            st.caption("Loaded text resume.")
 
-    col_t1, col_t2 = st.columns([1, 2])
-    with col_t1:
-        if st.button("📨 Test SMTP Connection", use_container_width=True):
+    col_btn1, col_btn2 = st.columns([1, 2])
+    with col_btn1:
+        if st.button("Verify SMTP Delivery", use_container_width=True):
             if not st.session_state.smtp_email or not st.session_state.smtp_password:
-                st.error("Please fill in your Gmail and App Password above.")
+                st.error("Please provide both Gmail address and App Password.")
             else:
-                with st.spinner("Verifying SMTP..."):
-                    tmp_resume_path = None
+                with st.spinner("Dispatching verification email..."):
+                    tmp_pdf = None
                     if st.session_state.resume_bytes:
                         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                             tmp.write(st.session_state.resume_bytes)
-                            tmp_resume_path = tmp.name
+                            tmp_pdf = tmp.name
                     try:
                         send_outreach.send_single_email(
                             "smtp.gmail.com",
@@ -551,34 +525,31 @@ if st.session_state.active_stage == "1. Identity & Vault":
                             st.session_state.smtp_email,
                             st.session_state.smtp_password.replace(" ", ""),
                             st.session_state.smtp_email,
-                            "FreeApply-AI: SMTP Verification",
-                            f"Hello {st.session_state.sender_name or 'there'},\n\nYour SMTP setup is 100% verified and operational.",
+                            "FreeApply Verification",
+                            f"System connection verified for {st.session_state.sender_name or 'Candidate'}.",
                             st.session_state.sender_name,
-                            attachment_path=tmp_resume_path,
+                            attachment_path=tmp_pdf,
                         )
-                        st.success("✅ Delivery verified! Check your inbox.")
-                    except Exception as e:
-                        st.error(f"SMTP Error: {e}")
+                        st.success("Verification email delivered to your inbox.")
+                    except Exception as err:
+                        st.error(f"Delivery failed: {err}")
                     finally:
-                        if tmp_resume_path and os.path.exists(tmp_resume_path):
-                            os.remove(tmp_resume_path)
+                        if tmp_pdf and os.path.exists(tmp_pdf):
+                            os.remove(tmp_pdf)
 
-    with col_t2:
-        if st.button("Proceed to Target Radar & AI ➔", type="primary", use_container_width=True):
-            st.session_state.active_stage = "2. Target Radar & AI"
+    with col_btn2:
+        if st.button("Continue to Lead Radar", type="primary", use_container_width=True):
+            st.session_state.stage = "2. Lead Radar"
             st.rerun()
 
 
 # ==============================================================================
-# STAGE 2: Target Radar & AI Personalization Engine
+# STAGE 2: Lead Radar & AI Personalization Engine
 # ==============================================================================
-elif st.session_state.active_stage == "2. Target Radar & AI":
-    st.markdown("### 🎯 Stage 2: Target Radar & AI Personalization")
-    st.caption("Manage target companies, inspect leads, and let Google Gemini generate authentic 1-2 sentence hooks.")
-
-    col_up, col_rst = st.columns([3, 1])
-    with col_up:
-        uploaded_csv = st.file_uploader("Upload Leads CSV (`name,email,company,role,custom_hook`)", type=["csv"])
+elif st.session_state.stage == "2. Lead Radar":
+    col_u1, col_u2 = st.columns([3, 1])
+    with col_u1:
+        uploaded_csv = st.file_uploader("Upload CSV Spreadsheet", type=["csv"], label_visibility="collapsed")
         if uploaded_csv is not None:
             try:
                 st.session_state.leads_df = pd.read_csv(uploaded_csv)
@@ -591,17 +562,17 @@ elif st.session_state.active_stage == "2. Target Radar & AI":
                     st.session_state.leads_df = pd.read_csv(uploaded_csv, on_bad_lines="skip")
                     if "custom_hook" not in st.session_state.leads_df.columns:
                         st.session_state.leads_df["custom_hook"] = ""
-                    st.warning("Imported leads with bad lines skipped.")
+                    st.warning("Imported with invalid lines skipped.")
                 except Exception as e:
                     st.error(f"Error parsing CSV: {e}")
-    with col_rst:
-        if st.button("Reset Example Leads", use_container_width=True):
+    with col_u2:
+        if st.button("Reset Starter Leads", use_container_width=True):
             example_path = os.path.join(BASE_DIR, "leads.example.csv")
             if os.path.exists(example_path):
                 st.session_state.leads_df = pd.read_csv(example_path)
-                st.info("Reset to 3 starter leads.")
+                st.info("Loaded example leads.")
 
-    st.markdown("#### Interactive Pipeline Table:")
+    # Data Editor
     edited_df = st.data_editor(
         st.session_state.leads_df,
         num_rows="dynamic",
@@ -609,42 +580,25 @@ elif st.session_state.active_stage == "2. Target Radar & AI":
     )
     st.session_state.leads_df = edited_df
 
-    st.write("")
-
-    # AI Personalization Trigger
-    st.markdown(
-        """
-        <div class="glass-deck" style="padding: 1.1rem;">
-            <h4 style="margin:0 0 0.4rem 0;">✨ Gemini 2.5 Flash Hook Generator</h4>
-            <span style="color:#94a3b8; font-size:0.88rem;">
-                Gemini reads your resume achievements and connects them directly to each target company's domain.
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col_ai1, col_ai2 = st.columns([1, 1])
-    with col_ai1:
-        if st.button("🤖 Generate AI Personalization Hooks", use_container_width=True):
+    col_act1, col_act2 = st.columns([1, 1])
+    with col_act1:
+        if st.button("Synthesize AI Hooks (Gemini 2.5 Flash)", use_container_width=True):
             if not st.session_state.gemini_api_key:
-                st.error("Please add your Gemini API Key in Stage 1.")
+                st.error("Missing Gemini API Key. Configure in Stage 1.")
             elif not st.session_state.resume_text:
-                st.error("Please upload your resume in Stage 1 first.")
+                st.error("Missing resume background. Upload in Stage 1.")
             elif st.session_state.leads_df.empty:
-                st.warning("No leads found in table.")
+                st.warning("Queue is empty.")
             else:
                 try:
                     from google import genai
                     client = genai.Client(api_key=st.session_state.gemini_api_key.strip())
                     p_bar = st.progress(0)
-                    stat_txt = st.empty()
                     total = len(st.session_state.leads_df)
 
                     for idx, row in st.session_state.leads_df.iterrows():
                         comp = str(row.get("company", "")).strip()
                         role = str(row.get("role", "")).strip()
-                        stat_txt.markdown(f"*Crafting pitch for **{role}** at **{comp}** ({idx + 1}/{total})...*")
                         hook = personalize.generate_hook_with_gemini(
                             client, "gemini-2.5-flash", st.session_state.resume_text, comp, role
                         )
@@ -652,188 +606,162 @@ elif st.session_state.active_stage == "2. Target Radar & AI":
                             st.session_state.leads_df.at[idx, "custom_hook"] = hook
                         p_bar.progress((idx + 1) / total)
 
-                    stat_txt.success("✨ All AI hooks generated! You can review or edit them above.")
+                    st.success("All AI hooks synthesized.")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Gemini API Error: {e}")
+                except Exception as err:
+                    st.error(f"Synthesis failed: {err}")
 
-    with col_ai2:
-        if st.button("Proceed to Executive Studio ➔", type="primary", use_container_width=True):
-            st.session_state.active_stage = "3. Executive Studio"
+    with col_act2:
+        if st.button("Continue to Composer", type="primary", use_container_width=True):
+            st.session_state.stage = "3. Composer"
             st.rerun()
 
 
 # ==============================================================================
-# STAGE 3: Executive Email Studio (Superhuman / Apple Mail Style)
+# STAGE 3: Composer & Review
 # ==============================================================================
-elif st.session_state.active_stage == "3. Executive Studio":
-    st.markdown("### ✉️ Stage 3: Executive Outreach Studio")
-    st.caption("Inspect live rendered emails with visual variable highlights. Confirm how each email looks before dispatch.")
-
-    template_files = {
-        "Operations Outreach": os.path.join(TEMPLATES_DIR, "operations_outreach.txt"),
-        "Engineering Outreach": os.path.join(TEMPLATES_DIR, "engineering_outreach.txt"),
-        "General Outreach": os.path.join(TEMPLATES_DIR, "general_outreach.txt"),
-        "Follow-up": os.path.join(TEMPLATES_DIR, "followup.txt"),
+elif st.session_state.stage == "3. Composer":
+    template_map = {
+        "Operations Lead": os.path.join(TEMPLATES_DIR, "operations_outreach.txt"),
+        "Software Engineering": os.path.join(TEMPLATES_DIR, "engineering_outreach.txt"),
+        "General Multi-Role": os.path.join(TEMPLATES_DIR, "general_outreach.txt"),
+        "Follow-Up": os.path.join(TEMPLATES_DIR, "followup.txt"),
     }
 
-    col_tp1, col_tp2 = st.columns([1, 1])
-    with col_tp1:
-        chosen_template_name = st.selectbox("Select Strategy Template", list(template_files.keys()))
-        selected_template_path = template_files[chosen_template_name]
-        template_content = ""
-        if os.path.exists(selected_template_path):
-            with open(selected_template_path, "r", encoding="utf-8") as f:
-                template_content = f.read()
+    col_sel1, col_sel2 = st.columns([1, 1])
+    with col_sel1:
+        chosen_tpl = st.selectbox("Template Strategy", list(template_map.keys()))
+        tpl_path = template_map[chosen_tpl]
+        tpl_body = ""
+        if os.path.exists(tpl_path):
+            with open(tpl_path, "r", encoding="utf-8") as f:
+                tpl_body = f.read()
 
-    with col_tp2:
-        lead_options = [f"{row.get('company', '')} — {row.get('name', '')} ({row.get('role', '')})" for _, row in st.session_state.leads_df.iterrows()] if not st.session_state.leads_df.empty else ["No Leads Available"]
-        preview_idx = st.selectbox("Inspect Recruiter Card", range(len(lead_options)), format_func=lambda x: lead_options[x] if x < len(lead_options) else "")
+    with col_sel2:
+        lead_labels = [
+            f"{r.get('company', '')} — {r.get('name', '')} ({r.get('role', '')})"
+            for _, r in st.session_state.leads_df.iterrows()
+        ] if not st.session_state.leads_df.empty else ["No leads available"]
+        active_lead_idx = st.selectbox(
+            "Inspect Contact",
+            range(len(lead_labels)),
+            format_func=lambda i: lead_labels[i] if i < len(lead_labels) else "",
+        )
 
-    template_text = st.text_area("Template Canvas", template_content, height=140)
+    # Executive Email Canvas
+    if not st.session_state.leads_df.empty and active_lead_idx < len(st.session_state.leads_df):
+        lead = st.session_state.leads_df.iloc[active_lead_idx]
+        company_val = str(lead.get("company", "Company"))
+        role_val = str(lead.get("role", "Role"))
+        hook_val = str(lead.get("custom_hook", ""))
+        email_val = str(lead.get("email", "recruiter@example.com"))
+        name_val = str(lead.get("name", "Hiring Team"))
 
-    # Superhuman-Style Highlighted Preview
-    if not st.session_state.leads_df.empty and preview_idx < len(st.session_state.leads_df):
-        sample_row = st.session_state.leads_df.iloc[preview_idx]
-        company = str(sample_row.get("company", "Acme"))
-        role = str(sample_row.get("role", "Operations Lead"))
-        hook = str(sample_row.get("custom_hook", ""))
-        rec_email = str(sample_row.get("email", "recruiter@company.com"))
-        rec_name = str(sample_row.get("name", "Hiring Team"))
-
-        # Render plain text for delivery
-        rendered_plain = template_text
-        sample_data = {
-            "name": rec_name,
-            "company": company,
-            "role": role,
-            "custom_hook": hook,
-            "original_subject": f"Application for {role}",
-            "sender_name": st.session_state.sender_name or "Job Seeker",
-        }
-        for k, v in sample_data.items():
-            rendered_plain = rendered_plain.replace(f"{{{{{k}}}}}", str(v))
-
-        subj = "Application"
-        body_plain = rendered_plain
-        for line in rendered_plain.splitlines():
+        # Render preview with typography highlight tokens
+        subject_line = "Application"
+        raw_body_lines = []
+        for line in tpl_body.splitlines():
             if line.lower().startswith("subject:"):
-                subj = line.split(":", 1)[1].strip()
-                body_plain = "\n".join([l for l in rendered_plain.splitlines() if not l.lower().startswith("subject:")]).strip()
-                break
+                subject_line = line.split(":", 1)[1].strip().replace("{{role}}", role_val).replace("{{company}}", company_val).replace("{{sender_name}}", st.session_state.sender_name or "Candidate")
+            else:
+                raw_body_lines.append(line)
 
-        # Render visually highlighted version for human review
-        highlighted_body = template_text
-        for line in highlighted_body.splitlines():
-            if line.lower().startswith("subject:"):
-                highlighted_body = "\n".join([l for l in highlighted_body.splitlines() if not l.lower().startswith("subject:")]).strip()
-                break
-
-        highlighted_body = (
-            highlighted_body
-            .replace("{{name}}", f"<b>{rec_name}</b>")
-            .replace("{{company}}", f'<span class="var-company">{company}</span>')
-            .replace("{{role}}", f'<span class="var-role">{role}</span>')
-            .replace("{{custom_hook}}", f'<span class="hook-highlight">{hook or "[AI Hook Pending]"}</span>')
-            .replace("{{sender_name}}", f"<b>{st.session_state.sender_name or 'Your Name'}</b>")
+        rendered_body = "\n".join(raw_body_lines).strip()
+        rendered_body = (
+            rendered_body
+            .replace("{{name}}", f"<b>{name_val}</b>")
+            .replace("{{company}}", f'<span class="highlight-pill">{company_val}</span>')
+            .replace("{{role}}", f'<span class="highlight-pill">{role_val}</span>')
+            .replace("{{custom_hook}}", f'<span class="hook-token">{hook_val or "[AI Hook Pending]"}</span>')
+            .replace("{{sender_name}}", f"<b>{st.session_state.sender_name or 'Candidate'}</b>")
             .replace("\n", "<br>")
         )
 
         st.markdown(
             f"""
-            <div class="email-canvas">
-                <div class="email-meta-row">
-                    <span class="email-meta-label">FROM:</span>
-                    <span class="chip-sender">{st.session_state.sender_name or 'Job Seeker'} &lt;{st.session_state.smtp_email or 'not-configured'}&gt;</span>
+            <div class="email-container">
+                <div class="email-row">
+                    <span class="email-key">FROM:</span>
+                    <span class="email-val">{st.session_state.sender_name or 'Candidate'} &lt;{st.session_state.smtp_email or 'pending@gmail.com'}&gt;</span>
                 </div>
-                <div class="email-meta-row">
-                    <span class="email-meta-label">TO:</span>
-                    <span class="chip-recip">{rec_name} &lt;{rec_email}&gt;</span>
+                <div class="email-row">
+                    <span class="email-key">TO:</span>
+                    <span class="email-val">{name_val} &lt;{email_val}&gt;</span>
                 </div>
-                <div class="email-meta-row">
-                    <span class="email-meta-label">SUBJECT:</span>
-                    <span style="font-weight:700; color:#f1f5f9;">{subj}</span>
+                <div class="email-row">
+                    <span class="email-key">SUBJECT:</span>
+                    <span class="email-val" style="color:#f8fafc; font-weight:600;">{subject_line}</span>
                 </div>
-                <div class="email-meta-row">
-                    <span class="email-meta-label">ATTACH:</span>
-                    <span class="chip-attach">📎 {st.session_state.resume_filename if st.session_state.resume_bytes else 'No Resume Attached'}</span>
+                <div class="email-row">
+                    <span class="email-key">ATTACH:</span>
+                    <span class="email-val">{st.session_state.resume_filename if st.session_state.resume_bytes else 'None'}</span>
                 </div>
-                <div style="padding-top:1.2rem; color:#e2e8f0; line-height:1.65; font-size:0.95rem;">
-                    {highlighted_body}
-                </div>
+                <div class="email-body">{rendered_body}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    st.write("")
-    col_st3, col_st4 = st.columns([1, 1])
-    with col_st3:
-        if st.button("⬅️ Back to Target Radar", use_container_width=True):
-            st.session_state.active_stage = "2. Target Radar & AI"
+    col_nav1, col_nav2 = st.columns([1, 1])
+    with col_nav1:
+        if st.button("Return to Lead Radar", use_container_width=True):
+            st.session_state.stage = "2. Lead Radar"
             st.rerun()
-    with col_st4:
-        if st.button("Proceed to Mission Control ➔", type="primary", use_container_width=True):
-            st.session_state.active_stage = "4. Mission Control"
+    with col_nav2:
+        if st.button("Continue to Execution", type="primary", use_container_width=True):
+            st.session_state.stage = "4. Execution"
             st.rerun()
 
 
 # ==============================================================================
-# STAGE 4: Mission Control, Safe Launch & Vault Locker
+# STAGE 4: Execution Engine & Session Vault Locker
 # ==============================================================================
-elif st.session_state.active_stage == "4. Mission Control":
-    st.markdown("### 🚀 Stage 4: Mission Control & Safe Launch")
-    st.caption("Execute your dry-run preview, launch live throttled dispatch, and export your encrypted session vault.")
+elif st.session_state.stage == "4. Execution":
+    col_act1, col_act2 = st.columns(2)
 
-    # Dual Dispatch Deck
-    col_d1, col_d2 = st.columns(2)
-
-    with col_d1:
+    with col_act1:
         st.markdown(
             """
-            <div class="glass-deck">
-                <h4 style="margin:0 0 0.4rem 0; color:#38bdf8;">🛡️ Safe Dry-Run Simulation</h4>
-                <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:1rem;">
-                    Simulate full email rendering for all contacts with 0 risk. No network calls or live emails sent.
-                </p>
+            <div class="section-card">
+                <div class="telemetry-label">Pre-Flight Simulation</div>
+                <div style="font-size:0.85rem; color:#94a3b8; margin:0.4rem 0 0.8rem 0;">
+                    Verify template variable compilation and attachment readiness without network calls.
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("👁️ Run Simulation Preview", use_container_width=True):
-            st.success(f"✓ Simulation passed! All {len(st.session_state.leads_df)} contacts are properly formatted and ready.")
+        if st.button("Simulate Dry Run", use_container_width=True):
+            st.success(f"Simulation verified: {len(st.session_state.leads_df)} leads ready for transmission.")
 
-    with col_d2:
+    with col_act2:
         st.markdown(
             """
-            <div class="glass-deck">
-                <h4 style="margin:0 0 0.4rem 0; color:#f43f5e;">⚡ Armed Live Outreach</h4>
-                <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:1rem;">
-                    Dispatches personalized emails through Gmail SMTP with randomized 30–45s delays to protect deliverability.
-                </p>
+            <div class="section-card">
+                <div class="telemetry-label" style="color:#f43f5e;">Armed Transmission</div>
+                <div style="font-size:0.85rem; color:#94a3b8; margin:0.4rem 0 0.8rem 0;">
+                    Dispatches live emails via Gmail SMTP with randomized 30–45s deliverability delays.
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("🔴 Fire Live Outreach", type="primary", use_container_width=True):
-            if not st.session_state.smtp_email or not st.session_state.smtp_password:
+        if st.button("Execute Live Outreach", type="primary", use_container_width=True):
+            if not smtp_ok:
                 st.error("Missing Gmail credentials in Stage 1.")
             elif st.session_state.leads_df.empty:
-                st.warning("Queue is empty.")
+                st.warning("Lead queue is empty.")
             else:
-                tmp_resume_path = None
+                tmp_pdf = None
                 if st.session_state.resume_bytes:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                         tmp.write(st.session_state.resume_bytes)
-                        tmp_resume_path = tmp.name
+                        tmp_pdf = tmp.name
 
                 total = len(st.session_state.leads_df)
                 p_bar = st.progress(0)
-                status_box = st.empty()
-
-                template_file = os.path.join(TEMPLATES_DIR, "operations_outreach.txt")
-                with open(template_file, "r", encoding="utf-8") as f:
-                    template_raw = f.read()
+                status_view = st.empty()
+                tpl_file = os.path.join(TEMPLATES_DIR, "operations_outreach.txt")
 
                 try:
                     for i, (idx, row) in enumerate(st.session_state.leads_df.iterrows(), 1):
@@ -846,9 +774,9 @@ elif st.session_state.active_stage == "4. Mission Control":
                             "original_subject": f"Application for {row.get('role', '')}",
                             "sender_name": st.session_state.sender_name or "Candidate",
                         }
-                        subj, body = send_outreach.render_template(template_file, data)
+                        subj, body = send_outreach.render_template(tpl_file, data)
 
-                        status_box.markdown(f"**[{i}/{total}] Sending to {rec_email} at {row.get('company')}...**")
+                        status_view.caption(f"[{i}/{total}] Delivering to {rec_email} at {row.get('company')}...")
                         try:
                             send_outreach.send_single_email(
                                 "smtp.gmail.com",
@@ -859,7 +787,7 @@ elif st.session_state.active_stage == "4. Mission Control":
                                 subj,
                                 body,
                                 st.session_state.sender_name,
-                                attachment_path=tmp_resume_path,
+                                attachment_path=tmp_pdf,
                             )
                             st.session_state.sent_history.append({
                                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -880,23 +808,25 @@ elif st.session_state.active_stage == "4. Mission Control":
                         p_bar.progress(i / total)
                         if i < total:
                             delay = random.randint(30, 45)
-                            status_box.info(f"⏳ Throttling: waiting {delay}s before next send to protect inbox health...")
+                            status_view.caption(f"Throttling: {delay}s delay to preserve inbox health...")
                             time.sleep(delay)
 
-                    status_box.success("🎉 Outreach batch complete!")
+                    status_view.success("Outreach sequence finished.")
                 finally:
-                    if tmp_resume_path and os.path.exists(tmp_resume_path):
-                        os.remove(tmp_resume_path)
+                    if tmp_pdf and os.path.exists(tmp_pdf):
+                        os.remove(tmp_pdf)
 
-    st.divider()
+    # --- Session Vault Locker ---
+    st.markdown("---")
+    st.markdown("#### Encrypted Session Vault Backup")
+    st.caption("Bundle credentials, resume, leads table, and touch history into a single AES-256 encrypted file.")
 
-    # --- KNOWLEDGE GRAPH VAULT LOCKER ---
     log_lines = [
-        "# FreeApply-AI: Outreach Knowledge Graph & Audit Log",
+        "# FreeApply-AI Outreach Knowledge Graph",
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"Candidate: {st.session_state.sender_name or 'Candidate'}",
         "",
-        "## Outreach Nodes & Touch History",
+        "## Outreach Nodes & History",
         "",
     ]
     for item in st.session_state.sent_history:
@@ -904,22 +834,18 @@ elif st.session_state.active_stage == "4. Mission Control":
             f"- **{item.get('company', 'Unknown')}** | Role: `{item.get('role', 'N/A')}` | "
             f"Contact: `{item.get('email', 'N/A')}` | Status: **{item.get('status', 'PENDING')}** | Date: {item.get('timestamp', '')}"
         )
-    log_md_str = "\n".join(log_lines)
+    log_md_content = "\n".join(log_lines)
 
-    st.markdown("#### 🔒 Encrypted Session Vault Backup")
-    st.caption("Store your credentials, resume, leads table, and Knowledge Graph in a single AES-256 encrypted file so you never have to retype them.")
-
-    col_v1, col_v2 = st.columns([2, 1])
-    with col_v1:
+    col_bk1, col_bk2 = st.columns([2, 1])
+    with col_bk1:
         vault_pw = st.text_input(
-            "Set Vault Password",
+            "Vault Encryption Password",
             type="password",
             value=st.session_state.vault_password,
-            placeholder="Enter password or PIN to encrypt your file",
+            placeholder="Choose password or PIN",
+            label_visibility="collapsed",
         )
-    with col_v2:
-        st.write("")
-        st.write("")
+    with col_bk2:
         if vault_pw:
             cfg = {
                 "sender_name": st.session_state.sender_name,
@@ -930,21 +856,19 @@ elif st.session_state.active_stage == "4. Mission Control":
             try:
                 enc_data = pack_encrypted_vault(
                     vault_pw, cfg, st.session_state.leads_df, st.session_state.sent_history,
-                    st.session_state.resume_bytes, st.session_state.resume_filename, log_md_str
+                    st.session_state.resume_bytes, st.session_state.resume_filename, log_md_content
                 )
                 st.download_button(
-                    "💾 Download FreeApply_Vault.zip",
+                    "Download FreeApply_Vault.zip",
                     data=enc_data,
                     file_name="FreeApply_Vault.zip",
                     mime="application/zip",
                     use_container_width=True,
                 )
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error packing vault: {e}")
         else:
-            st.button("💾 Download FreeApply_Vault.zip", disabled=True, use_container_width=True)
+            st.button("Download FreeApply_Vault.zip", disabled=True, use_container_width=True)
 
-    st.write("")
     if st.session_state.sent_history:
-        st.markdown("#### Real-Time Delivery Log")
         st.dataframe(pd.DataFrame(st.session_state.sent_history), use_container_width=True)
