@@ -1,0 +1,7 @@
+# Core AI & Document Parsing
+google-genai>=1.0.0
+pymupdf>=1.24.0
+python-dotenv>=1.0.0
+
+# Optional SSL & Network Compatibility
+truststore>=0.9.0; python_version >= "3.10"

@@ -1,0 +1,14 @@
+Subject: Exploring opportunities at {{company}} - {{role}}
+
+Hi {{name}},
+
+I have been following {{company}}'s recent journey and find your team's mission and momentum truly compelling.
+
+I am reaching out to explore potential opportunities where my background in structured execution, problem-solving, and cross-functional collaboration can add value to {{company}}. {{custom_hook}}
+
+I have attached my resume highlighting my professional experience and key achievements.
+
+I would appreciate the chance to connect for a quick 5-minute conversation if you are exploring additions to the team.
+
+Warm regards,
+{{sender_name}}

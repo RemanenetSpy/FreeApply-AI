@@ -1,0 +1,17 @@
+Subject: Application for {{role}} | {{company}} - {{sender_name}}
+
+Hi {{name}},
+
+I have been following {{company}}'s growth and noticed your continued focus on operational quality and team execution.
+
+I bring hands-on experience driving daily operations, process optimization, and service consistency:
+- Proven track record managing cross-functional team workflows, vendor SLAs, and compliance benchmarks.
+- Experience standardizing SOPs, reducing turn-around times, and diagnosing operational bottlenecks.
+- Data-driven approach to tracking operational KPIs and continuous process improvement. {{custom_hook}}
+
+I would love to explore if {{company}} is open to bringing on an operational contributor for a {{role}} role. I have attached my resume for your review.
+
+I would appreciate 5 minutes of your time for a brief conversation this week.
+
+Best regards,
+{{sender_name}}

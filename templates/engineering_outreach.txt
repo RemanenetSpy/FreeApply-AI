@@ -1,0 +1,14 @@
+Subject: Exploring opportunities at {{company}} - {{role}}
+
+Hi {{name}},
+
+I noticed the impressive engineering work happening at {{company}}, particularly around your recent product initiatives.
+
+I am an engineer with hands-on experience developing robust backend services, modular architectures, and automated pipelines. {{custom_hook}}
+
+I would love to learn if {{company}} is looking to add driven engineers to your team for a {{role}} position. I have attached my resume for your consideration.
+
+If you are open to it, I would welcome a brief 5-minute conversation at your convenience.
+
+Thank you for your time,
+{{sender_name}}

@@ -1,0 +1,12 @@
+Subject: Re: {{original_subject}}
+
+Hi {{name}},
+
+I wanted to quickly follow up on my previous note regarding the {{role}} opening at {{company}}.
+
+I recognize you must be managing a busy schedule and multiple priorities. I remain enthusiastic about {{company}}'s work and would welcome the opportunity to discuss how my skill set aligns with your team's goals.
+
+My resume remains attached for quick reference.
+
+Thank you again for your time and consideration,
+{{sender_name}}

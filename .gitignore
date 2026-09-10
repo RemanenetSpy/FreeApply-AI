@@ -1,0 +1,32 @@
+# Environment variables & secrets (CRITICAL: NEVER COMMIT)
+.env
+*.env
+*.env.local
+
+# Candidate Resume & Personal Data
+*.pdf
+leads.csv
+followups.csv
+sent_history.csv
+log.md
+*.txt
+!requirements.txt
+!templates/*.txt
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# IDE & OS files
+.vscode/
+.idea/
+*.sublime-workspace
+.DS_Store
+Thumbs.db
